@@ -1,0 +1,64 @@
+name: Build uBlock Origin
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+# REQUIRED: Grants the action permission to create a release
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Build Tools
+        run: sudo apt-get install -y make zip
+
+      - name: Compile uBlock Origin for Chromium
+        run: make chromium
+
+      - name: Install CRX Packager
+        run: npm install -g crx3
+
+      - name: Generate Extension Key
+        run: openssl genrsa -out ublock.pem 2048
+
+      - name: Pack to .CRX
+        run: |
+          crx3 -o ublock.crx -p ublock.pem dist/build/uBlock0.chromium
+
+      - name: Create Unpacked ZIP (Fallback)
+        run: |
+          cd dist/build
+          zip -r ../../ublock-unpacked.zip uBlock0.chromium/
+
+      - name: Upload Build Artifacts (Actions Tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ublock-origin-build
+          path: |
+            ublock.crx
+            ublock.pem
+            ublock-unpacked.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "uBlock Origin Build #${{ github.run_number }}"
+          body: "Automated build of uBlock Origin generated via GitHub Actions."
+          files: |
+            ublock.crx
+            ublock.pem
+            ublock-unpacked.zip
